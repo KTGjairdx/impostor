@@ -1447,3 +1447,26 @@
   font-size: 0.8rem;
   opacity: 0.9;
 }
+
+/* Botón Nueva Partida del Host Supervisor */
+.new-round-btn {
+  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  font-size: 1.1rem;
+  border-radius: 15px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  font-weight: bold;
+  box-shadow: 0 8px 20px rgba(255,107,53,0.3);
+}
+
+.new-round-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(255,107,53,0.4);
+}
+
+.new-round-btn:active {
+  transform: translateY(0px);
+}

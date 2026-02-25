@@ -23,7 +23,7 @@ const wordsDatabase = [
 
 function App() {
   // Estados principales
-  const [gameState, setGameState] = useState('menu'); // menu, createRoom, joinRoom, lobby, playing, voting, finished
+  const [gameState, setGameState] = useState('menu'); // menu, createRoom, joinRoom, lobby, playing, finished
   const [roomCode, setRoomCode] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [isHost, setIsHost] = useState(false);
@@ -35,9 +35,7 @@ function App() {
   const [inputRoomCode, setInputRoomCode] = useState('');
   const [inputPlayerName, setInputPlayerName] = useState('');
   
-  // Estados para votación y puntuación
-  const [myVote, setMyVote] = useState('');
-  const [hasVoted, setHasVoted] = useState(false);
+  // Estados para puntuación y rondas
   const [votationResults, setVotationResults] = useState(null);
   const [roundNumber, setRoundNumber] = useState(1);
   const [usingCache, setUsingCache] = useState(false); // Indicador de modo caché
@@ -113,18 +111,11 @@ function App() {
       // LOBBY: Actualización constante para ver jugadores uniéndose
       return 7000; // 7 segundos todos en lobby
     } else if (gameState === 'playing') {
-      // PLAYING: MODO OPTIMIZADO - detectar inicio de votación rápido
+      // PLAYING: MODO OPTIMIZADO - polling lento en modo silencioso
       if (isInCriticalWindow) {
         return isHost ? 3000 : 5000; // Rápido solo durante transiciones
       } else {
-        return isHost ? 45000 : 60000; // Host: 45s, Jugadores: 1min (para detectar voting)
-      }
-    } else if (gameState === 'voting') {
-      // VOTING: MODO SILENCIOSO - solo para detectar fin de votación
-      if (isInCriticalWindow) {
-        return isHost ? 3000 : 5000; // Rápido durante cambios
-      } else {
-        return isHost ? 60000 : 120000; // Host: 1min, Jugadores: 2min
+        return isHost ? 45000 : 60000; // Host: 45s, Jugadores: 1min
       }
     } else {
       // FINISHED: MODO SILENCIOSO - solo para nueva ronda
@@ -602,8 +593,6 @@ function App() {
     setRoomData(null);
     setGameData(null);
     setMyRole(null);
-    setMyVote('');
-    setHasVoted(false);
     setVotationResults(null);
     setRoundNumber(1);
     setGameState('menu');
@@ -710,7 +699,7 @@ function App() {
             
             // Verificar auto-finish después de limpiar jugadores
             const currentRoom = await getRoomDataOptimized(roomCode, true); // Forzar refresh
-            if (currentRoom && (currentRoom.gameState === 'playing' || currentRoom.gameState === 'voting') && currentRoom.players.length < 3) {
+            if (currentRoom && currentRoom.gameState === 'playing' && currentRoom.players.length < 4) {
               console.log('🔴 AUTO-FINISH: Menos de 3 jugadores detectados:', currentRoom.players.length);
               
               // Asignar puntos de supervivencia a jugadores restantes
@@ -808,8 +797,6 @@ function App() {
               console.log('🔄 NUEVA RONDA DETECTADA por jugador');
               setGameData(null);
               setMyRole(null);
-              setMyVote('');
-              setHasVoted(false);
               setVotationResults(null);
               setRoundNumber(room.roundNumber || 1);
               setGameState('lobby');
@@ -821,14 +808,7 @@ function App() {
               markCriticalChange(`cambio de estado: ${gameState} → ${room.gameState}`);
             }
             
-            // Actualizar estado de votación si estamos votando
-            if (gameState === 'voting' && room.votes) {
-              const userVote = room.votes[playerName];
-              if (userVote && !hasVoted) {
-                setMyVote(userVote);
-                setHasVoted(true);
-              }
-            }
+            // No hay sistema de votación - host supervisor inicia directamente nueva ronda
           } else if (!room && !isHost) {
             alert('La sala fue cerrada por el host');
             await leaveRoom();
@@ -850,7 +830,7 @@ function App() {
         if (interval) clearInterval(interval);
       };
     }
-  }, [roomCode, gameState, playerName, isHost, hasVoted, lastCriticalChange]);
+  }, [roomCode, gameState, playerName, isHost, lastCriticalChange]);
 
   // Limpiar salas viejas al cargar
   useEffect(() => {
@@ -874,167 +854,80 @@ function App() {
     cleanOldRooms();
   }, []);
 
-  // Iniciar fase de votación (solo el host)
-  const startVoting = async () => {
+  // Iniciar nueva partida (solo el host supervisor)
+  const startNewRound = async () => {
     if (!isHost) return;
     
-    console.log('🗳️ HOST INICIA VOTACIÓN...');
+    console.log('🔄 HOST SUPERVISOR INICIA NUEVA RONDA...');
+    
     const room = await getRoomData(roomCode);
+    if (!room || room.players.length < 4) {
+      alert('Necesitas al menos 4 jugadores (3 jugadores + 1 host supervisor) para empezar');
+      return;
+    }
+
+    // Seleccionar palabra aleatoria
+    const selectedWordData = wordsDatabase[Math.floor(Math.random() * wordsDatabase.length)];
+    
+    // HOST NO JUEGA - Solo los jugadores (excluyendo al host)
+    const gamePlayers = room.players.filter(player => player !== playerName);
+    const shuffledPlayers = [...gamePlayers].sort(() => Math.random() - 0.5);
+    console.log('🎮 NUEVA RONDA - JUGADORES (sin host):', shuffledPlayers);
+    
+    // Determinar número de impostores según cantidad de jugadores
+    let numImpostors;
+    if (shuffledPlayers.length <= 6) {
+      numImpostors = 1;
+    } else if (shuffledPlayers.length <= 12) {
+      numImpostors = 2;
+    } else {
+      numImpostors = 3;
+    }
+    
+    const newRoles = {};
+    
+    // HOST SUPERVISOR - Ve todos los roles
+    newRoles[playerName] = {
+      role: 'supervisor',
+      card: `HOST SUPERVISOR - Palabra: "${selectedWordData.word}"`,
+      description: 'Puedes ver todos los roles de los jugadores'
+    };
+    
+    // Asignar roles a jugadores (sin incluir al host)
+    shuffledPlayers.forEach((player, index) => {
+      newRoles[player] = {
+        role: index < numImpostors ? 'impostor' : 'ally',
+        card: index < numImpostors ? '???' : selectedWordData.word // Impostor sin pista
+      };
+    });
+
     const updatedRoom = {
       ...room,
-      gameState: 'voting',
-      votes: {},
-      votingStarted: Date.now()
+      gameState: 'playing',
+      gameData: selectedWordData,
+      roles: newRoles
     };
-    
-    // INSTANT LOCAL UPDATE + CRITICAL CHANGE MARKER
-    setRoomData(updatedRoom);
-    updateLocalCache(updatedRoom);
-    setGameState('voting');
-    setHasVoted(false);
-    setMyVote('');
-    markCriticalChange('HOST inicia votación'); // ¡SEÑALAR CAMBIO CRÍTICO!
-    
-    console.log('✅ Estado local actualizado a voting, guardando en BD...');
-    // SAVE WITH PROPER ERROR HANDLING
-    try {
-      await saveRoomData(roomCode, updatedRoom);
-      console.log('💾 VOTACIÓN guardada correctamente en BD');
-    } catch (err) {
-      console.error('❌ Error iniciando votación:', err);
-      alert('Error al iniciar votación, intenta de nuevo');
-    }
-  };
 
-  // Enviar voto
-  const submitVote = async (votedPlayer) => {
-    if (hasVoted || votedPlayer === playerName) return;
-    
-    // MEGA-OPTIMIZED: usar datos locales para votar (sin petición)
-    const currentRoom = roomData || getCachedRoomData();
-    if (!currentRoom) {
-      console.log('⚠️ No hay datos de sala para votar, obteniendo...');
-      const room = await getRoomDataOptimized(roomCode, true);
-      if (!room) return;
-      setRoomData(room);
-      // Intentar de nuevo con los nuevos datos
-      setTimeout(() => submitVote(votedPlayer), 100);
-      return;
-    }
-    
-    const updatedVotes = {
-      ...currentRoom.votes,
-      [playerName]: votedPlayer
-    };
-    
-    const updatedRoom = {
-      ...currentRoom,
-      votes: updatedVotes
-    };
-    
-    // INSTANT LOCAL UPDATE (sin esperar base de datos)
-    setRoomData(updatedRoom);
-    updateLocalCache(updatedRoom);
-    setMyVote(votedPlayer);
-    setHasVoted(true);
-    
-    // BACKGROUND SYNC (no bloquea la interfaz)
-    saveRoomData(roomCode, updatedRoom).catch(err => {
-      console.error('Error guardando voto:', err);
-      // Revertir cambios locales si falla la sincronización
-      setRoomData(currentRoom);
-      setMyVote('');
-      setHasVoted(false);
-      alert('Error al votar, intenta de nuevo');
-    });
-    
-    // Auto-finalizar si todos votaron y somos host
-    if (Object.keys(updatedVotes).length === currentRoom.players.length && isHost) {
-      setTimeout(() => finishVoting(), 1000);
-    }
-  };
-
-  // Finalizar votación y mostrar resultados (solo host)
-  const finishVoting = async () => {
-    if (!isHost) return;
-    
-    // OPTIMIZED: usar datos locales actuales en lugar de nueva petición
-    const currentRoom = roomData || getCachedRoomData();
-    if (!currentRoom) {
-      console.log('⚠️ No hay datos locales para finalizar votación');
-      const room = await getRoomDataOptimized(roomCode, true);
-      if (room) setRoomData(room);
-      return;
-    }
-    
-    const votes = currentRoom.votes || {};
-    const voteCounts = {};
-    
-    // Contar votos
-    Object.values(votes).forEach(votedPlayer => {
-      voteCounts[votedPlayer] = (voteCounts[votedPlayer] || 0) + 1;
-    });
-    
-    // Encontrar el jugador más votado
-    let mostVotedPlayer = '';
-    let maxVotes = 0;
-    Object.entries(voteCounts).forEach(([player, count]) => {
-      if (count > maxVotes) {
-        maxVotes = count;
-        mostVotedPlayer = player;
-      }
-    });
-    
-    // Obtener todos los impostores
-    const impostors = Object.entries(currentRoom.roles).filter(([_, data]) => 
-      data.role === 'impostor'
-    ).map(([player, _]) => player);
-    
-    // Determinar si el jugador más votado era impostor
-    const votedPlayerWasImpostor = currentRoom.roles[mostVotedPlayer]?.role === 'impostor';
-    
-    // Los impostores ganan si NO eliminaron a ningún impostor
-    const impostorWins = !votedPlayerWasImpostor;
-    const results = {
-      votes: voteCounts,
-      mostVoted: mostVotedPlayer,
-      impostors: impostors, // Múltiples impostores
-      impostorWins: impostorWins,
-      totalVotes: Object.keys(votes).length,
-      playerVotes: votes,
-      votedPlayerWasImpostor: votedPlayerWasImpostor
-    };
-    
-    // Calcular nuevas puntuaciones
-    const newScores = calculateScores(results, currentRoom.scores, currentRoom.roles);
-    
-    // Calcular puntos ganados en esta ronda para mostrar
-    const pointsThisRound = {};
-    Object.keys(currentRoom.players).forEach(player => {
-      pointsThisRound[player] = newScores[player] - (currentRoom.scores[player] || 0);
-    });
-    
-    const updatedRoom = {
-      ...currentRoom,
-      gameState: 'finished',
-      votationResults: results,
-      scores: newScores,
-      pointsThisRound: pointsThisRound,
-      gamesPlayed: (currentRoom.gamesPlayed || 0) + 1
-    };
-    
     // INSTANT LOCAL UPDATE + BACKGROUND SYNC
     setRoomData(updatedRoom);
     updateLocalCache(updatedRoom);
-    setVotationResults(results);
-    setGameState('finished');
-    markCriticalChange('HOST finaliza votación'); // ¡SEÑALAR CAMBIO CRÍTICO!
+    setGameData(selectedWordData);
+    setMyRole(newRoles[playerName]);
+    setGameState('playing');
+    markCriticalChange('HOST supervisor inicia nueva ronda');
     
-    // BACKGROUND SAVE (no bloquea la interfaz)
-    saveRoomData(roomCode, updatedRoom).catch(err => {
-      console.error('Error guardando resultados de votación:', err);
-    });
+    console.log('🚀 NUEVA RONDA: Guardando en base de datos...');
+    
+    try {
+      await saveRoomData(roomCode, updatedRoom);
+      console.log('✅ NUEVA RONDA: Datos guardados correctamente');
+    } catch (err) {
+      console.error('❌ Error guardando nueva ronda:', err);
+      alert('Error al iniciar nueva ronda, verifica tu conexión');
+    }
   };
+
+
 
   // Manejar tecla Enter
   const handleKeyPress = (e, action) => {
@@ -1292,92 +1185,15 @@ function App() {
           {isHost && (
             <div className="host-controls">
               <button 
-                className="voting-btn"
-                onClick={startVoting}
+                className="new-round-btn"
+                onClick={startNewRound}
               >
-                Iniciar Votación
+                🔄 Nueva Partida
               </button>
             </div>
           )}
 
           <div className="game-footer">
-            <button 
-              className="leave-btn"
-              onClick={leaveRoom}
-            >
-              Abandonar Partida
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Pantalla de votación */}
-      {gameState === 'voting' && roomData && (
-        <div className="voting-screen">
-          <div className="voting-header">
-            <h2>🗳️ Fase de Votación</h2>
-            <p>
-              Sala: <strong>{roomCode}</strong> 
-              {isHost && <span title="Anfitrión - Control con modo silencioso optimizado" style={{color: '#ff6b35', fontSize: '12px', marginLeft: '5px'}}>👑 HOST</span>}
-              {usingCache && <span title="Trabajando con datos locales" style={{color: '#28a745', fontSize: '12px'}}>🎯 OFFLINE</span>}
-              {Date.now() - lastCriticalChange < 30000 && <span title="ULTRA-Sync: cambios de juego/votación instantáneos!" style={{color: '#007bff', fontSize: '12px', marginLeft: '5px'}}>⚡ ULTRA-SYNC</span>}
-            </p>
-            <p>Vota por quien crees que es el impostor</p>
-          </div>
-
-          <div className="voting-info">
-            <div className="voting-stats">
-              <span>Votos recibidos: {Object.keys(roomData.votes || {}).length}/{roomData.players.length}</span>
-              {hasVoted && <span className="voted-indicator">✅ Has votado</span>}
-            </div>
-          </div>
-
-          <div className="voting-players">
-            <h3>Selecciona a quien votar:</h3>
-            <div className="players-voting-grid">
-              {roomData.players.filter(player => player !== playerName).map((player) => {
-                const voteCount = Object.values(roomData.votes || {}).filter(vote => vote === player).length;
-                return (
-                  <div 
-                    key={player} 
-                    className={`voting-player-card ${myVote === player ? 'selected' : ''} ${hasVoted && myVote !== player ? 'disabled' : ''}`}
-                    onClick={() => !hasVoted && submitVote(player)}
-                  >
-                    <div className="player-name">{player}</div>
-                    <div className="vote-count">{voteCount} voto{voteCount !== 1 ? 's' : ''}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {myVote && (
-            <div className="my-vote-display">
-              <p>Tu voto: <strong>{myVote}</strong></p>
-            </div>
-          )}
-
-          {isHost && (
-            <div className="voting-controls">
-              <button 
-                className="finish-voting-btn"
-                onClick={finishVoting}
-                disabled={Object.keys(roomData.votes || {}).length < roomData.players.length}
-              >
-                Finalizar Votación ({Object.keys(roomData.votes || {}).length}/{roomData.players.length})
-              </button>
-            </div>
-          )}
-
-          {!isHost && (
-            <p className="waiting-message">
-              {hasVoted 
-                ? "Esperando a que termine la votación..." 
-                : "¡Vota por quien crees que es el impostor!"}
-            </p>
-          )}
-
-          <div className="voting-footer">
             <button 
               className="leave-btn"
               onClick={leaveRoom}
@@ -1556,8 +1372,6 @@ function App() {
                   updateLocalCache(resetRoom);
                   setGameData(null);
                   setMyRole(null);
-                  setMyVote('');
-                  setHasVoted(false);
                   setVotationResults(null);
                   setRoundNumber(resetRoom.roundNumber);
                   setGameState('lobby');
