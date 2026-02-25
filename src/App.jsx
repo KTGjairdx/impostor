@@ -1233,6 +1233,31 @@ function App() {
           <h2>🏆 ¡Partida Finalizada!</h2>
           <p>Sala: <strong>{roomCode}</strong></p>
 
+          {/* Mostrar resultado de la votación si existe */}
+          {votationResults && (
+              {/* Puntos ganados en esta ronda */}
+              {roomData.pointsThisRound && (
+                <div className="points-earned">
+                  <h4>💎 Puntos ganados esta ronda:</h4>
+                  <div className="points-grid">
+                    {Object.entries(roomData.pointsThisRound).map(([player, points]) => (
+                      <div key={player} className={`points-item ${points > 0 ? 'earned-points' : 'no-points'}`}>
+                        <span className="player-name">{player}</span>
+                        <span className="points-earned-text">
+                          {points > 0 ? `+${points} pts` : '0 pts'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="points-explanation">
+                    <small>
+                      {votationResults.impostorWins 
+                        ? '🔥 Impostor: +3 pts por ganar' 
+                        : '✅ Aliados que votaron correctamente: +2 pts | Todos los aliados: +1 pt extra'}
+                    </small>
+                  </div>
+                </div>
+              )}
 
               {/* Mostrar información diferente si terminó automáticamente o manualmente */}
               {(votationResults.autoFinish || votationResults.manualFinish) ? (
