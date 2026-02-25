@@ -679,7 +679,7 @@ function App() {
         if (gameState === 'lobby') {
           console.log('🏠 LOBBY ACTIVO: Actualizando cada 7s para detectar nuevos jugadores');
         } else if (gameState === 'playing') {
-          console.log('🎮 PLAYING ACTIVO: Polling para detectar inicio de votación');
+          console.log('🎮 PLAYING ACTIVO: Polling para detectar cambios de partida');
         }
         
         interval = setInterval(async () => {
@@ -735,12 +735,12 @@ function App() {
           }
           
           console.log('🎯 Llegando a sección de polling de datos...');
-          // OBTENER DATOS ACTUALIZADOS siempre para lobby, playing (para votación) y cambios críticos
+          // OBTENER DATOS ACTUALIZADOS siempre para lobby, playing (para nuevas rondas) y cambios críticos
           const needsRefresh = gameState === 'lobby' || gameState === 'playing' || isHost || (Date.now() - lastCriticalChange < 30000);
           if (gameState === 'lobby') {
             console.log(`🔄 LOBBY DEBUG - needsRefresh: ${needsRefresh} | gameState: ${gameState} | roomCode: ${roomCode}`);
           } else if (gameState === 'playing') {
-            console.log(`🎮 PLAYING DEBUG - needsRefresh: ${needsRefresh} | Buscando inicio de votación...`);
+            console.log(`🎮 PLAYING DEBUG - needsRefresh: ${needsRefresh} | Buscando cambios de partida...`);
           }
           const room = await getRoomDataOptimized(roomCode, needsRefresh);
           console.log('📊 Datos obtenidos:', room ? 'OK' : 'NULL', 'para gameState:', gameState);
@@ -777,13 +777,22 @@ function App() {
                 setGameState('playing');
                 markCriticalChange('jugadores detectan inicio del juego'); // ¡CRÍTICO! Acelerar sync cuando TODOS detecten inicio del juego
               }
-            } else if (room.gameState === 'voting' && gameState === 'playing') {
-              console.log('🗳️ JUGADOR DETECTA INICIO DE VOTACIÓN');
-              setGameState('voting');
-              setHasVoted(false);
-              setMyVote('');
-              markCriticalChange('inicio de votación detectado'); // Marcar cambio crítico para acelerar sync
-            } else if (room.gameState === 'finished' && (gameState === 'playing' || gameState === 'voting')) {
+            } else if (room.gameState === 'playing' && gameState === 'playing') {
+              // DETECTAR CAMBIOS EN NUEVA RONDA (misma partida, pero nueva palabra/roles)
+              const hasNewGameData = room.gameData && (!gameData || room.gameData.word !== gameData.word);
+              const hasNewRoles = room.roles && room.roles[playerName] && 
+                (!myRole || room.roles[playerName].card !== myRole.card);
+              
+              if (hasNewGameData || hasNewRoles) {
+                console.log('🔄 JUGADOR DETECTA NUEVA RONDA - Actualizando tarjeta...');
+                setGameData(room.gameData);
+                if (room.roles && room.roles[playerName]) {
+                  setMyRole(room.roles[playerName]);
+                  console.log('✅ TARJETA ACTUALIZADA:', room.roles[playerName]);
+                }
+                markCriticalChange('jugador detecta nueva ronda y actualiza tarjeta');
+              }
+            } else if (room.gameState === 'finished' && gameState === 'playing') {
               const fullRoom = await getRoomDataOptimized(roomCode, true);
               if (fullRoom && fullRoom.votationResults) {
                 setVotationResults(fullRoom.votationResults);
@@ -1210,7 +1219,7 @@ function App() {
           <div className="game-instructions">
             <p>
               {myRole.role === 'supervisor' 
-                ? '🎮 MODO SUPERVISOR: Observa la partida y modera la votación cuando consideres necesario. Los jugadores no pueden verte.'
+                ? '🎮 MODO SUPERVISOR: Observa la partida y decide cuándo iniciar una nueva ronda. Los jugadores no pueden verte.'
                 : myRole.role === 'impostor' 
                   ? '¡Debes descubrir la palabra secreta escuchando a los demás sin que te descubran!'
                   : '¡Busca al impostor! Ellos no conocen la palabra secreta.'}
