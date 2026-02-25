@@ -1471,6 +1471,39 @@
   transform: translateY(0px);
 }
 
+/* Botón Finalizar Partida del Host Supervisor */
+.finish-game-btn {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  font-size: 1.1rem;
+  border-radius: 15px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  font-weight: bold;
+  box-shadow: 0 8px 20px rgba(231,76,60,0.3);
+  margin-left: 15px;
+}
+
+.finish-game-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(231,76,60,0.4);
+}
+
+.finish-game-btn:active {
+  transform: translateY(0px);
+}
+
+.host-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px 0;
+}
+
 /* Estilos para el control de visibilidad del supervisor */
 .supervisor-container {
   width: 100%;
@@ -1543,4 +1576,29 @@
   background: rgba(255,255,255,0.1);
   border-radius: 10px;
   border-left: 4px solid #74b9ff;
+}
+
+/* Estilos para finalización manual */
+.manual-finish-results {
+  background: rgba(52, 73, 94, 0.1);
+  border-radius: 15px;
+  padding: 20px;
+  margin: 20px 0;
+  border-left: 4px solid #3498db;
+}
+
+.manual-finish-header h3 {
+  color: #3498db;
+  margin: 0 0 10px 0;
+}
+
+.manual-finish-reason {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  margin: 10px 0;
+}
+
+.final-roles-reveal h4 {
+  color: #e74c3c;
+  margin: 15px 0 10px 0;
 }

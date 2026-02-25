@@ -695,43 +695,9 @@ function App() {
             // Continuar a pesar del error de heartbeat
           }
           
-          // Si es host, limpiar jugadores inactivos Y verificar auto-finish
+          // Si es host, limpiar jugadores inactivos solamente
           if (isHost) {
             await cleanInactivePlayers();
-            
-            // Verificar auto-finish después de limpiar jugadores
-            const currentRoom = await getRoomDataOptimized(roomCode, true); // Forzar refresh
-            if (currentRoom && currentRoom.gameState === 'playing' && currentRoom.players.length < 4) {
-              console.log('🔴 AUTO-FINISH: Menos de 3 jugadores detectados:', currentRoom.players.length);
-              
-              // Asignar puntos de supervivencia a jugadores restantes
-              const newScores = { ...currentRoom.scores };
-              currentRoom.players.forEach(player => {
-                newScores[player] = (newScores[player] || 0) + 1; // +1 punto por supervivencia
-              });
-
-              const finishedRoom = {
-                ...currentRoom,
-                gameState: 'finished',
-                scores: newScores,
-                votationResults: {
-                  votes: {},
-                  mostVoted: null,
-                  impostors: Object.entries(currentRoom.roles || {})
-                    .filter(([_, data]) => data.role === 'impostor')
-                    .map(([player, _]) => player),
-                  impostorWins: false,
-                  totalVotes: 0,
-                  playerVotes: {},
-                  autoFinish: true,
-                  reason: 'Menos de 3 jugadores restantes'
-                }
-              };
-              
-              await saveRoomData(roomCode, finishedRoom);
-              updateLocalCache(finishedRoom); // Actualizar caché inmediatamente
-              return; // Salir para que el siguiente polling recoja el nuevo estado
-            }
           }
           
           console.log('🎯 Llegando a sección de polling de datos...');
@@ -937,6 +903,48 @@ function App() {
     } catch (err) {
       console.error('❌ Error guardando nueva ronda:', err);
       alert('Error al iniciar nueva ronda, verifica tu conexión');
+    }
+  };
+
+  // Finalizar partida manualmente (solo el host supervisor)
+  const finishGame = async () => {
+    if (!isHost) return;
+    
+    console.log('🏁 HOST SUPERVISOR FINALIZA PARTIDA MANUALMENTE...');
+    
+    const room = await getRoomData(roomCode);
+    if (!room) return;
+
+    const finishedRoom = {
+      ...room,
+      gameState: 'finished',
+      votationResults: {
+        votes: {},
+        mostVoted: null,
+        impostors: Object.entries(room.roles || {})
+          .filter(([_, data]) => data.role === 'impostor')
+          .map(([player, _]) => player),
+        impostorWins: false,
+        totalVotes: 0,
+        playerVotes: {},
+        manualFinish: true,
+        reason: 'Partida finalizada por el supervisor'
+      }
+    };
+
+    // INSTANT LOCAL UPDATE + BACKGROUND SYNC
+    setRoomData(finishedRoom);
+    updateLocalCache(finishedRoom);
+    setVotationResults(finishedRoom.votationResults);
+    setGameState('finished');
+    markCriticalChange('HOST supervisor finaliza partida manualmente');
+    
+    try {
+      await saveRoomData(roomCode, finishedRoom);
+      console.log('✅ PARTIDA FINALIZADA correctamente');
+    } catch (err) {
+      console.error('❌ Error finalizando partida:', err);
+      alert('Error al finalizar partida, verifica tu conexión');
     }
   };
 
@@ -1234,6 +1242,12 @@ function App() {
               >
                 🔄 Nueva Partida
               </button>
+              <button 
+                className="finish-game-btn"
+                onClick={finishGame}
+              >
+                🏁 Finalizar Partida
+              </button>
             </div>
           )}
 
@@ -1294,17 +1308,16 @@ function App() {
                 </div>
               )}
 
-              {/* Mostrar información diferente si terminó automáticamente */}
-              {votationResults.autoFinish ? (
-                <div className="auto-finish-results">
-                  <div className="auto-finish-header">
-                    <h3>🏁 Juego Terminado Automáticamente</h3>
-                    <p className="auto-finish-reason"><strong>{votationResults.reason}</strong></p>
-                    <p>✅ Todos los jugadores restantes recibieron +1 punto por supervivencia</p>
+              {/* Mostrar información diferente si terminó automáticamente o manualmente */}
+              {(votationResults.autoFinish || votationResults.manualFinish) ? (
+                <div className="manual-finish-results">
+                  <div className="manual-finish-header">
+                    <h3>🏁 {votationResults.manualFinish ? 'Partida Finalizada por el Supervisor' : 'Juego Terminado Automáticamente'}</h3>
+                    <p className="manual-finish-reason"><strong>{votationResults.reason}</strong></p>
                   </div>
                   
                   <div className="final-roles-reveal">
-                    <h4>Roles finales:</h4>
+                    <h4>Roles de la partida:</h4>
                     <p><strong>Los impostores eran:</strong> {votationResults.impostors?.join(', ') || 'Ninguno'}</p>
                   </div>
                 </div>
@@ -1337,28 +1350,6 @@ function App() {
                 </div>
               </div>
               )}
-            </div>
-          )}
-
-          {/* Scoreboard actualizado */}
-          {roomData.scores && (
-            <div className="final-scoreboard">
-              <h3>🏆 Puntuaciones Totales</h3>
-              <div className="final-scores-grid">
-                {Object.entries(roomData.scores)
-                  .sort(([,a], [,b]) => b - a)
-                  .map(([player, score], index) => (
-                  <div key={player} className={`final-score-item ${index === 0 ? 'winner' : ''} ${player === playerName ? 'my-score' : ''}`}>
-                    <div className="rank">#{index + 1}</div>
-                    <div className="player-info">
-                      <span className="player-name">{player}</span>
-                      {player === playerName && <span className="you-badge">TÚ</span>}
-                    </div>
-                    <div className="score">{score} pts</div>
-                    {index === 0 && <div className="crown">👑</div>}
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
