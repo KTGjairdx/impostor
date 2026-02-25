@@ -1366,3 +1366,84 @@
     font-size: 0.9rem;
   }
 }
+
+/* Estilos para el modo SUPERVISOR */
+.supervisor-view {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.supervisor-header {
+  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 15px;
+  text-align: center;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 25px rgba(255,107,53,0.3);
+}
+
+.supervisor-header h3 {
+  margin: 0 0 10px 0;
+  font-size: 1.4rem;
+}
+
+.supervisor-header p {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+.all-players-roles {
+  background: rgba(255,255,255,0.05);
+  border-radius: 15px;
+  padding: 20px;
+  border: 2px solid rgba(255,255,255,0.1);
+}
+
+.all-players-roles h4 {
+  text-align: center;
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.player-role-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 15px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  transition: transform 0.2s;
+}
+
+.player-role-card:hover {
+  transform: translateX(5px);
+}
+
+.player-role-card.impostor {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.player-role-card.ally {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.player-name {
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.role-badge {
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+.role-info {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}

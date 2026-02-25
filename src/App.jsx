@@ -113,11 +113,11 @@ function App() {
       // LOBBY: Actualización constante para ver jugadores uniéndose
       return 7000; // 7 segundos todos en lobby
     } else if (gameState === 'playing') {
-      // PLAYING: MODO SILENCIOSO - solo heartbeat y cambios críticos
+      // PLAYING: MODO OPTIMIZADO - detectar inicio de votación rápido
       if (isInCriticalWindow) {
         return isHost ? 3000 : 5000; // Rápido solo durante transiciones
       } else {
-        return isHost ? 120000 : 300000; // Host: 2min, Jugadores: 5min (ULTRA-LENTO)
+        return isHost ? 45000 : 60000; // Host: 45s, Jugadores: 1min (para detectar voting)
       }
     } else if (gameState === 'voting') {
       // VOTING: MODO SILENCIOSO - solo para detectar fin de votación
@@ -504,16 +504,18 @@ function App() {
     if (!isHost) return;
     
     const room = await getRoomData(roomCode);
-    if (!room || room.players.length < 3) {
-      alert('Necesitas al menos 3 jugadores para empezar');
+    if (!room || room.players.length < 4) {
+      alert('Necesitas al menos 4 jugadores (3 jugadores + 1 host supervisor) para empezar');
       return;
     }
 
     // Seleccionar palabra aleatoria
     const selectedWordData = wordsDatabase[Math.floor(Math.random() * wordsDatabase.length)];
     
-    // Asignar roles aleatoriamente con múltiples impostores
-    const shuffledPlayers = [...room.players].sort(() => Math.random() - 0.5);
+    // HOST NO JUEGA - Solo los jugadores (excluyendo al host)
+    const gamePlayers = room.players.filter(player => player !== playerName);
+    const shuffledPlayers = [...gamePlayers].sort(() => Math.random() - 0.5);
+    console.log('🎮 JUGADORES EN PARTIDA (sin host):', shuffledPlayers);
     
     // Determinar número de impostores según cantidad de jugadores
     let numImpostors;
@@ -526,6 +528,15 @@ function App() {
     }
     
     const newRoles = {};
+    
+    // HOST SUPERVISOR - Ve todos los roles
+    newRoles[playerName] = {
+      role: 'supervisor',
+      card: `HOST SUPERVISOR - Palabra: "${selectedWordData.word}"`,
+      description: 'Puedes ver todos los roles de los jugadores'
+    };
+    
+    // Asignar roles a jugadores (sin incluir al host)
     shuffledPlayers.forEach((player, index) => {
       newRoles[player] = {
         role: index < numImpostors ? 'impostor' : 'ally',
@@ -676,6 +687,8 @@ function App() {
         console.log(`⏱️ POLLING OPTIMIZADO: ${pollingTime/1000}s - Estado: ${gameState} | Crítico: ${Date.now() - lastCriticalChange < 30000} | Host: ${isHost}`);
         if (gameState === 'lobby') {
           console.log('🏠 LOBBY ACTIVO: Actualizando cada 7s para detectar nuevos jugadores');
+        } else if (gameState === 'playing') {
+          console.log('🎮 PLAYING ACTIVO: Polling para detectar inicio de votación');
         }
         
         interval = setInterval(async () => {
@@ -731,10 +744,12 @@ function App() {
           }
           
           console.log('🎯 Llegando a sección de polling de datos...');
-          // OBTENER DATOS ACTUALIZADOS siempre para lobby y host, otras veces según necesidad
-          const needsRefresh = gameState === 'lobby' || gameState === "playing" || gameState === "voting"|| isHost || (Date.now() - lastCriticalChange < 30000);
+          // OBTENER DATOS ACTUALIZADOS siempre para lobby, playing (para votación) y cambios críticos
+          const needsRefresh = gameState === 'lobby' || gameState === 'playing' || isHost || (Date.now() - lastCriticalChange < 30000);
           if (gameState === 'lobby') {
             console.log(`🔄 LOBBY DEBUG - needsRefresh: ${needsRefresh} | gameState: ${gameState} | roomCode: ${roomCode}`);
+          } else if (gameState === 'playing') {
+            console.log(`🎮 PLAYING DEBUG - needsRefresh: ${needsRefresh} | Buscando inicio de votación...`);
           }
           const room = await getRoomDataOptimized(roomCode, needsRefresh);
           console.log('📊 Datos obtenidos:', room ? 'OK' : 'NULL', 'para gameState:', gameState);
@@ -772,6 +787,7 @@ function App() {
                 markCriticalChange('jugadores detectan inicio del juego'); // ¡CRÍTICO! Acelerar sync cuando TODOS detecten inicio del juego
               }
             } else if (room.gameState === 'voting' && gameState === 'playing') {
+              console.log('🗳️ JUGADOR DETECTA INICIO DE VOTACIÓN');
               setGameState('voting');
               setHasVoted(false);
               setMyVote('');
@@ -862,6 +878,7 @@ function App() {
   const startVoting = async () => {
     if (!isHost) return;
     
+    console.log('🗳️ HOST INICIA VOTACIÓN...');
     const room = await getRoomData(roomCode);
     const updatedRoom = {
       ...room,
@@ -878,11 +895,15 @@ function App() {
     setMyVote('');
     markCriticalChange('HOST inicia votación'); // ¡SEÑALAR CAMBIO CRÍTICO!
     
-    // BACKGROUND SAVE (no bloquea la transición)
-    saveRoomData(roomCode, updatedRoom).catch(err => {
-      console.error('Error iniciando votación:', err);
+    console.log('✅ Estado local actualizado a voting, guardando en BD...');
+    // SAVE WITH PROPER ERROR HANDLING
+    try {
+      await saveRoomData(roomCode, updatedRoom);
+      console.log('💾 VOTACIÓN guardada correctamente en BD');
+    } catch (err) {
+      console.error('❌ Error iniciando votación:', err);
       alert('Error al iniciar votación, intenta de nuevo');
-    });
+    }
   };
 
   // Enviar voto
@@ -1217,24 +1238,54 @@ function App() {
           </div>
 
           <div className="card-area">
-            <div className={`game-card ${myRole.role}`}>
-              <div className="card-header">
-                {myRole.role === 'impostor' ? 
-                  'ERES EL IMPOSTOR 🔥' : 'ERES UN ALIADO ✅'}
+            {myRole.role === 'supervisor' ? (
+              // VISTA HOST SUPERVISOR - Ve todos los roles
+              <div className="supervisor-view">
+                <div className="supervisor-header">
+                  <h3>🎮 MODO SUPERVISOR - Vista completa de la partida</h3>
+                  <p>Palabra secreta: <strong>{gameData?.word}</strong></p>
+                </div>
+                
+                <div className="all-players-roles">
+                  <h4>Roles de todos los jugadores:</h4>
+                  {roomData?.roles && Object.entries(roomData.roles)
+                    .filter(([player]) => player !== playerName) // Excluir al host de la lista
+                    .map(([player, role]) => (
+                    <div key={player} className={`player-role-card ${role.role}`}>
+                      <span className="player-name">{player}</span>
+                      <span className="role-badge">
+                        {role.role === 'impostor' ? '🔥 IMPOSTOR' : '✅ ALIADO'}
+                      </span>
+                      <span className="role-info">
+                        {role.role === 'impostor' ? 'NO conoce la palabra' : 'Conoce la palabra'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="card-content">
-                {myRole.role === 'impostor' ? 
-                  'Debes descubrir la palabra secreta' : 
-                  `Tu palabra: ${myRole.card}`}
+            ) : (
+              // VISTA JUGADOR NORMAL - Solo su carta
+              <div className={`game-card ${myRole.role}`}>
+                <div className="card-header">
+                  {myRole.role === 'impostor' ? 
+                    'ERES EL IMPOSTOR 🔥' : 'ERES UN ALIADO ✅'}
+                </div>
+                <div className="card-content">
+                  {myRole.role === 'impostor' ? 
+                    'Debes descubrir la palabra secreta' : 
+                    `Tu palabra: ${myRole.card}`}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="game-instructions">
             <p>
-              {myRole.role === 'impostor' 
-                ? '¡Debes descubrir la palabra secreta escuchando a los demás sin que te descubran!'
-                : '¡Busca al impostor! Ellos no conocen la palabra secreta.'}
+              {myRole.role === 'supervisor' 
+                ? '🎮 MODO SUPERVISOR: Observa la partida y modera la votación cuando consideres necesario. Los jugadores no pueden verte.'
+                : myRole.role === 'impostor' 
+                  ? '¡Debes descubrir la palabra secreta escuchando a los demás sin que te descubran!'
+                  : '¡Busca al impostor! Ellos no conocen la palabra secreta.'}
             </p>
           </div>
 
