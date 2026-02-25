@@ -1395,6 +1395,28 @@
   font-weight: bold;
 }
 
+.word-progress {
+  margin-top: 15px;
+  padding: 12px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+  border-left: 3px solid #00d2ff;
+}
+
+.word-progress p {
+  margin: 0 0 5px 0;
+  font-size: 1rem;
+}
+
+.words-used {
+  margin-top: 8px;
+}
+
+.words-used small {
+  color: rgba(255,255,255,0.8);
+  font-size: 0.85rem;
+}
+
 .all-players-roles {
   background: rgba(255,255,255,0.05);
   border-radius: 15px;

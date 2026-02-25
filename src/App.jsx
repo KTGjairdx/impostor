@@ -6,7 +6,7 @@ import { supabase } from './supabase.js'
 const wordsDatabase = [
   { word: "jorge" },
   { word: "Laptop"},
-  { word: "Fernando" },
+  { word: "Fernando G" },
   { word: "therian" },
   { word: "Jonathan" },
   { word: "Pincselin" },
@@ -42,6 +42,38 @@ function App() {
   const [lastCriticalChange, setLastCriticalChange] = useState(0); // Timestamp del último cambio crítico
   const [previousPlayerCount, setPreviousPlayerCount] = useState(0); // Para detectar nuevos jugadores
   const [supervisorVisible, setSupervisorVisible] = useState(false); // Controlar visibilidad del modo supervisor
+  const [usedWords, setUsedWords] = useState([]); // Trackear palabras ya usadas
+
+  // Función para seleccionar palabra sin repetir
+  const getNextWord = () => {
+    // Si hemos usado todas las palabras, reiniciar
+    if (usedWords.length >= wordsDatabase.length) {
+      setUsedWords([]);
+      localStorage.removeItem('usedWords'); // Limpiar localStorage
+      // Seleccionar primera palabra del ciclo nuevo
+      const firstWord = wordsDatabase[0];
+      const newUsedList = [firstWord.word];
+      setUsedWords(newUsedList);
+      localStorage.setItem('usedWords', JSON.stringify(newUsedList));
+      return firstWord;
+    }
+
+    // Filtrar palabras no usadas
+    const availableWords = wordsDatabase.filter(wordObj => 
+      !usedWords.includes(wordObj.word)
+    );
+
+    // Seleccionar aleatoriamente de las disponibles
+    const selectedWordData = availableWords[Math.floor(Math.random() * availableWords.length)];
+    
+    // Agregar a la lista de usadas
+    const newUsedList = [...usedWords, selectedWordData.word];
+    setUsedWords(newUsedList);
+    localStorage.setItem('usedWords', JSON.stringify(newUsedList));
+    
+    
+    return selectedWordData;
+  };
 
   // Funciones para manejar salas
   // Cache local para reducir peticiones
@@ -587,6 +619,8 @@ function App() {
     setMyRole(null);
     setVotationResults(null);
     setSupervisorVisible(false);
+    setUsedWords([]); // Resetear palabras usadas
+    localStorage.removeItem('usedWords'); // Limpiar localStorage
     setRoundNumber(1);
     setGameState('menu');
     setInputRoomCode('');
@@ -656,6 +690,22 @@ function App() {
       console.error('Error cleaning inactive players:', error);
     }
   };
+
+  // Cargar palabras usadas desde localStorage al inicializar
+  useEffect(() => {
+    const savedUsedWords = localStorage.getItem('usedWords');
+    if (savedUsedWords) {
+      try {
+        const parsedWords = JSON.parse(savedUsedWords);
+        if (Array.isArray(parsedWords)) {
+          setUsedWords(parsedWords);
+        }
+      } catch (error) {
+        console.error('Error cargando palabras usadas:', error);
+        localStorage.removeItem('usedWords');
+      }
+    }
+  }, []);
 
   // Polling optimizado: dinámico basado en cambios críticos
   useEffect(() => {
@@ -814,8 +864,8 @@ function App() {
       return;
     }
 
-    // Seleccionar palabra aleatoria
-    const selectedWordData = wordsDatabase[Math.floor(Math.random() * wordsDatabase.length)];
+    // Seleccionar palabra sin repetir para nueva ronda
+    const selectedWordData = getNextWord();
     
     // HOST NO JUEGA - Solo los jugadores (excluyendo al host)
     const gamePlayers = room.players.filter(player => player !== playerName);
@@ -1139,6 +1189,14 @@ function App() {
                     <div className="supervisor-header">
                       <h3>🎮 MODO SUPERVISOR - Vista completa de la partida</h3>
                       <p>Palabra secreta: <strong>{gameData?.word}</strong></p>
+                      <div className="word-progress">
+                        <p>📝 Progreso de palabras: <strong>{usedWords.length}</strong> de <strong>{wordsDatabase.length}</strong> usadas</p>
+                        {usedWords.length > 0 && (
+                          <div className="words-used">
+                            <small>Últimas palabras: {usedWords.slice(-3).join(', ')}</small>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="all-players-roles">
@@ -1236,6 +1294,18 @@ function App() {
           {/* Mostrar resultado de la votación si existe */}
           {votationResults && (
             <div className="voting-results">
+              <div className={`game-result ${votationResults.impostorWins ? 'impostor-wins' : 'allies-win'}`}>
+                <h3>
+                  {votationResults.impostorWins ? 
+                    '🔥 ¡EL IMPOSTOR GANÓ!' : 
+                    '✅ ¡LOS ALIADOS GANARON!'}
+                </h3>
+                <p>
+                  {votationResults.impostorWins ? 
+                    'El impostor logró engañar a todos (+3 puntos)' : 
+                    'Identificaron correctamente al impostor'}
+                </p>
+              </div>
 
               {/* Puntos ganados en esta ronda */}
               {roomData.pointsThisRound && (
@@ -1361,6 +1431,8 @@ function App() {
                   setMyRole(null);
                   setVotationResults(null);
                   setSupervisorVisible(false);
+                  setUsedWords([]); // Resetear palabras usadas al iniciar nueva partida
+                  localStorage.removeItem('usedWords'); // Limpiar localStorage
                   setRoundNumber(resetRoom.roundNumber);
                   setGameState('lobby');
                   markCriticalChange('HOST inicia nueva ronda'); // ¡CRÍTICO PARA SYNC!
