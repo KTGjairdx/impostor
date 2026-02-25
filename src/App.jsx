@@ -68,7 +68,6 @@ function App() {
     const maxCacheAge = gameState === 'lobby' ? 5000 : (isHost ? 30000 : 300000); // Host: 30s, otros: 5 min
     
     if (localRoomCache && cacheAge < maxCacheAge) {
-      console.log('🎯 USANDO CACHÉ:', gameState, 'edad:', Math.round(cacheAge/1000), 's', isHost ? '(HOST)' : '(PLAYER)');
       setUsingCache(true);
       return localRoomCache;
     }
@@ -84,7 +83,6 @@ function App() {
           const maxLocalAge = gameState === 'lobby' ? 10000 : (isHost ? 60000 : 600000); // Host: 1 min, otros: 10 min
           
           if (localAge < maxLocalAge) {
-            console.log('🎯 USANDO CACHÉ STORAGE:', gameState, 'edad:', Math.round(localAge/1000), 's', isHost ? '(HOST)' : '(PLAYER)');
             setLocalRoomCache(data);
             setLastCacheUpdate(timestamp);
             setUsingCache(true);
@@ -100,7 +98,6 @@ function App() {
   // Función para marcar cambios críticos (cambios de gameState, etc.)
   const markCriticalChange = (reason = 'cambio de estado') => {
     setLastCriticalChange(Date.now());
-    console.log(`🚨 CAMBIO CRÍTICO (${reason}): Acelerando por 30s - Durante juego SOLO para transiciones importantes`);
   };
 
   // Determinar intervalo de polling ULTRA-OPTIMIZADO
@@ -260,7 +257,6 @@ function App() {
   // Función optimizada para obtener datos de sala con caché
   const getRoomDataOptimized = async (code, forceRefresh = false) => {
     if (gameState === 'lobby') {
-      console.log(`🔍 getRoomDataOptimized - forceRefresh: ${forceRefresh} | gameState: ${gameState}`);
     }
     
     // Usar caché si no se fuerza el refresh
@@ -268,14 +264,12 @@ function App() {
       const cached = getCachedRoomData();
       if (cached) {
         if (gameState === 'lobby') {
-          console.log('📋 Usando datos del caché en lobby');
         }
         return cached;
       }
     }
 
     // Obtener datos frescos
-    console.log('🌐 PETICIÓN A BASE DE DATOS:', gameState);
     setUsingCache(false);
     const freshData = await getRoomData(code);
     if (freshData) {
@@ -507,7 +501,6 @@ function App() {
     // HOST NO JUEGA - Solo los jugadores (excluyendo al host)
     const gamePlayers = room.players.filter(player => player !== playerName);
     const shuffledPlayers = [...gamePlayers].sort(() => Math.random() - 0.5);
-    console.log('🎮 JUGADORES EN PARTIDA (sin host):', shuffledPlayers);
     
     // Determinar número de impostores según cantidad de jugadores
     let numImpostors;
@@ -551,12 +544,10 @@ function App() {
     setGameState('playing');
     markCriticalChange('HOST inicia nueva partida'); // ¡SEÑALAR CAMBIO CRÍTICO!
     
-    console.log('🚀 INICIANDO JUEGO: Guardando en base de datos...');
     
     // BACKGROUND SAVE (no bloquea transición)
     try {
       await saveRoomData(roomCode, updatedRoom);
-      console.log('✅ JUEGO INICIADO: Datos guardados correctamente');
     } catch (err) {
       console.error('❌ Error guardando inicio de juego:', err);
       alert('Error al iniciar juego, verifica tu conexión');
@@ -675,21 +666,15 @@ function App() {
         if (interval) clearInterval(interval);
         
         const pollingTime = getPollingInterval();
-        console.log(`⏱️ POLLING OPTIMIZADO: ${pollingTime/1000}s - Estado: ${gameState} | Crítico: ${Date.now() - lastCriticalChange < 30000} | Host: ${isHost}`);
         if (gameState === 'lobby') {
-          console.log('🏠 LOBBY ACTIVO: Actualizando cada 7s para detectar nuevos jugadores');
         } else if (gameState === 'playing') {
-          console.log('🎮 PLAYING ACTIVO: Polling para detectar cambios de partida');
         }
         
         interval = setInterval(async () => {
-        console.log('\ud83d\udd04 INICIANDO CICLO DE POLLING...', gameState);
         try {
           // SIEMPRE: Enviar heartbeat para indicar que el jugador sigue activo
-          console.log('\ud83d\udc93 Enviando heartbeat...');
           try {
             await updatePlayerHeartbeat();
-            console.log('\u2705 Heartbeat enviado correctamente');
           } catch (heartbeatError) {
             console.error('\u26a0\ufe0f Error en heartbeat:', heartbeatError);
             // Continuar a pesar del error de heartbeat
@@ -700,26 +685,20 @@ function App() {
             await cleanInactivePlayers();
           }
           
-          console.log('🎯 Llegando a sección de polling de datos...');
           // OBTENER DATOS ACTUALIZADOS siempre para lobby, playing (para nuevas rondas) y cambios críticos
           const needsRefresh = gameState === 'lobby' || gameState === 'playing' || isHost || (Date.now() - lastCriticalChange < 30000);
           if (gameState === 'lobby') {
-            console.log(`🔄 LOBBY DEBUG - needsRefresh: ${needsRefresh} | gameState: ${gameState} | roomCode: ${roomCode}`);
           } else if (gameState === 'playing') {
-            console.log(`🎮 PLAYING DEBUG - needsRefresh: ${needsRefresh} | Buscando cambios de partida...`);
           }
           const room = await getRoomDataOptimized(roomCode, needsRefresh);
-          console.log('📊 Datos obtenidos:', room ? 'OK' : 'NULL', 'para gameState:', gameState);
           
           if (room) {
             // Detectar cambios en la cantidad de jugadores (nuevas uniones O SALIDAS)
             const currentPlayerCount = room.players ? room.players.length : 0;
             if (previousPlayerCount > 0 && currentPlayerCount !== previousPlayerCount) {
               if (currentPlayerCount > previousPlayerCount) {
-                console.log('\ud83d\udc65 \u00a1NUEVO JUGADOR DETECTADO! (' + previousPlayerCount + ' \u2192 ' + currentPlayerCount + ') - Acelerando sincronizaci\u00f3n');
                 markCriticalChange('nuevo jugador se une al lobby');
               } else {
-                console.log('\ud83d\udeb6 \u00a1JUGADOR SALI\u00d3! (' + previousPlayerCount + ' \u2192 ' + currentPlayerCount + ') - Acelerando sincronizaci\u00f3n');
                 markCriticalChange('jugador abandona la sala');
               }
             }
@@ -750,11 +729,9 @@ function App() {
                 (!myRole || room.roles[playerName].card !== myRole.card);
               
               if (hasNewGameData || hasNewRoles) {
-                console.log('🔄 JUGADOR DETECTA NUEVA RONDA - Actualizando tarjeta...');
                 setGameData(room.gameData);
                 if (room.roles && room.roles[playerName]) {
                   setMyRole(room.roles[playerName]);
-                  console.log('✅ TARJETA ACTUALIZADA:', room.roles[playerName]);
                 }
                 markCriticalChange('jugador detecta nueva ronda y actualiza tarjeta');
               }
@@ -771,7 +748,6 @@ function App() {
               }, 100);
             } else if (room.gameState === 'lobby' && gameState === 'finished') {
               // NUEVA RONDA DETECTADA
-              console.log('🔄 NUEVA RONDA DETECTADA por jugador');
               setGameData(null);
               setMyRole(null);
               setVotationResults(null);
@@ -781,7 +757,6 @@ function App() {
               markCriticalChange('nueva ronda iniciada - jugador detecta'); // ¡CRÍTICO!
             } else if (room.gameState !== gameState) {
               // DETECCIÓN GENERAL DE CAMBIOS DE ESTADO
-              console.log(`🔄 CAMBIO DE ESTADO DETECTADO: ${gameState} → ${room.gameState}`);
               setGameState(room.gameState);
               markCriticalChange(`cambio de estado: ${gameState} → ${room.gameState}`);
             }
@@ -791,20 +766,16 @@ function App() {
             alert('La sala fue cerrada por el host');
             await leaveRoom();
           }
-          console.log('✅ CICLO DE POLLING COMPLETADO para gameState:', gameState);
         } catch (error) {
           console.error('❌ ERROR EN POLLING:', error, 'gameState:', gameState);
         }
         }, pollingTime);
         
-        console.log('✅ INTERVAL CONFIGURADO CORRECTAMENTE para', pollingTime, 'ms');
       };
       
       updateInterval(); // Iniciar polling
-      console.log('🚀 POLLING INICIADO para gameState:', gameState);
       
       return () => {
-        console.log('🛑 LIMPIANDO POLLING para gameState:', gameState);
         if (interval) clearInterval(interval);
       };
     }
@@ -836,7 +807,6 @@ function App() {
   const startNewRound = async () => {
     if (!isHost) return;
     
-    console.log('🔄 HOST SUPERVISOR INICIA NUEVA RONDA...');
     
     const room = await getRoomData(roomCode);
     if (!room || room.players.length < 4) {
@@ -850,7 +820,6 @@ function App() {
     // HOST NO JUEGA - Solo los jugadores (excluyendo al host)
     const gamePlayers = room.players.filter(player => player !== playerName);
     const shuffledPlayers = [...gamePlayers].sort(() => Math.random() - 0.5);
-    console.log('🎮 NUEVA RONDA - JUGADORES (sin host):', shuffledPlayers);
     
     // Determinar número de impostores según cantidad de jugadores
     let numImpostors;
@@ -895,11 +864,9 @@ function App() {
     setSupervisorVisible(false); // Ocultar supervisor al iniciar nueva ronda
     markCriticalChange('HOST supervisor inicia nueva ronda');
     
-    console.log('🚀 NUEVA RONDA: Guardando en base de datos...');
     
     try {
       await saveRoomData(roomCode, updatedRoom);
-      console.log('✅ NUEVA RONDA: Datos guardados correctamente');
     } catch (err) {
       console.error('❌ Error guardando nueva ronda:', err);
       alert('Error al iniciar nueva ronda, verifica tu conexión');
@@ -910,7 +877,6 @@ function App() {
   const finishGame = async () => {
     if (!isHost) return;
     
-    console.log('🏁 HOST SUPERVISOR FINALIZA PARTIDA MANUALMENTE...');
     
     const room = await getRoomData(roomCode);
     if (!room) return;
@@ -941,7 +907,6 @@ function App() {
     
     try {
       await saveRoomData(roomCode, finishedRoom);
-      console.log('✅ PARTIDA FINALIZADA correctamente');
     } catch (err) {
       console.error('❌ Error finalizando partida:', err);
       alert('Error al finalizar partida, verifica tu conexión');
@@ -1389,7 +1354,6 @@ function App() {
               <>
                 <button onClick={leaveRoom}>Nueva Sala</button>
                 <button onClick={async () => {
-                  console.log('🎮 HOST INICIA NUEVA RONDA...');
                   // Reset game state but keep room and scores
                   const resetRoom = {
                     ...roomData,
@@ -1413,11 +1377,9 @@ function App() {
                   setGameState('lobby');
                   markCriticalChange('HOST inicia nueva ronda'); // ¡CRÍTICO PARA SYNC!
                   
-                  console.log('✅ Estado local actualizado, guardando en DB...');
                   // BACKGROUND SAVE
                   try {
                     await saveRoomData(roomCode, resetRoom);
-                    console.log('💾 Nueva ronda guardada en BD correctamente');
                   } catch (error) {
                     console.error('❌ Error guardando nueva ronda:', error);
                   }
