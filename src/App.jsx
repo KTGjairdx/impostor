@@ -1235,6 +1235,8 @@ function App() {
 
           {/* Mostrar resultado de la votación si existe */}
           {votationResults && (
+            <div className="voting-results">
+
               {/* Puntos ganados en esta ronda */}
               {roomData.pointsThisRound && (
                 <div className="points-earned">
