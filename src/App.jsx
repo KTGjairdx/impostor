@@ -732,7 +732,7 @@ function App() {
           
           console.log('🎯 Llegando a sección de polling de datos...');
           // OBTENER DATOS ACTUALIZADOS siempre para lobby y host, otras veces según necesidad
-          const needsRefresh = gameState === 'lobby' || isHost || (Date.now() - lastCriticalChange < 30000);
+          const needsRefresh = gameState === 'lobby' || gameState === "playing" || isHost || (Date.now() - lastCriticalChange < 30000);
           if (gameState === 'lobby') {
             console.log(`🔄 LOBBY DEBUG - needsRefresh: ${needsRefresh} | gameState: ${gameState} | roomCode: ${roomCode}`);
           }
