@@ -41,6 +41,7 @@ function App() {
   const [usingCache, setUsingCache] = useState(false); // Indicador de modo caché
   const [lastCriticalChange, setLastCriticalChange] = useState(0); // Timestamp del último cambio crítico
   const [previousPlayerCount, setPreviousPlayerCount] = useState(0); // Para detectar nuevos jugadores
+  const [supervisorVisible, setSupervisorVisible] = useState(false); // Controlar visibilidad del modo supervisor
 
   // Funciones para manejar salas
   // Cache local para reducir peticiones
@@ -594,6 +595,7 @@ function App() {
     setGameData(null);
     setMyRole(null);
     setVotationResults(null);
+    setSupervisorVisible(false);
     setRoundNumber(1);
     setGameState('menu');
     setInputRoomCode('');
@@ -798,6 +800,7 @@ function App() {
               setGameData(null);
               setMyRole(null);
               setVotationResults(null);
+              setSupervisorVisible(false);
               setRoundNumber(room.roundNumber || 1);
               setGameState('lobby');
               markCriticalChange('nueva ronda iniciada - jugador detecta'); // ¡CRÍTICO!
@@ -914,6 +917,7 @@ function App() {
     setGameData(selectedWordData);
     setMyRole(newRoles[playerName]);
     setGameState('playing');
+    setSupervisorVisible(false); // Ocultar supervisor al iniciar nueva ronda
     markCriticalChange('HOST supervisor inicia nueva ronda');
     
     console.log('🚀 NUEVA RONDA: Guardando en base de datos...');
@@ -1132,29 +1136,60 @@ function App() {
 
           <div className="card-area">
             {myRole.role === 'supervisor' ? (
-              // VISTA HOST SUPERVISOR - Ve todos los roles
-              <div className="supervisor-view">
-                <div className="supervisor-header">
-                  <h3>🎮 MODO SUPERVISOR - Vista completa de la partida</h3>
-                  <p>Palabra secreta: <strong>{gameData?.word}</strong></p>
+              // VISTA HOST SUPERVISOR - Oculta por defecto
+              <div className="supervisor-container">
+                <div className="supervisor-toggle">
+                  <button 
+                    className={`supervisor-toggle-btn ${supervisorVisible ? 'active' : ''}`}
+                    onClick={() => setSupervisorVisible(!supervisorVisible)}
+                  >
+                    {supervisorVisible ? '🙈 Ocultar Vista Supervisor' : '👁️ Mostrar Vista Supervisor'}
+                  </button>
+                  <p className="supervisor-hint">
+                    {supervisorVisible ? 
+                      'Vista completa de la partida visible' : 
+                      'Haz clic para ver todos los roles de los jugadores'}
+                  </p>
                 </div>
-                
-                <div className="all-players-roles">
-                  <h4>Roles de todos los jugadores:</h4>
-                  {roomData?.roles && Object.entries(roomData.roles)
-                    .filter(([player]) => player !== playerName) // Excluir al host de la lista
-                    .map(([player, role]) => (
-                    <div key={player} className={`player-role-card ${role.role}`}>
-                      <span className="player-name">{player}</span>
-                      <span className="role-badge">
-                        {role.role === 'impostor' ? '🔥 IMPOSTOR' : '✅ ALIADO'}
-                      </span>
-                      <span className="role-info">
-                        {role.role === 'impostor' ? 'NO conoce la palabra' : 'Conoce la palabra'}
-                      </span>
+
+                {supervisorVisible && (
+                  <div className="supervisor-view">
+                    <div className="supervisor-header">
+                      <h3>🎮 MODO SUPERVISOR - Vista completa de la partida</h3>
+                      <p>Palabra secreta: <strong>{gameData?.word}</strong></p>
                     </div>
-                  ))}
-                </div>
+                    
+                    <div className="all-players-roles">
+                      <h4>Roles de todos los jugadores:</h4>
+                      {roomData?.roles && Object.entries(roomData.roles)
+                        .filter(([player]) => player !== playerName) // Excluir al host de la lista
+                        .map(([player, role]) => (
+                        <div key={player} className={`player-role-card ${role.role}`}>
+                          <span className="player-name">{player}</span>
+                          <span className="role-badge">
+                            {role.role === 'impostor' ? '🔥 IMPOSTOR' : '✅ ALIADO'}
+                          </span>
+                          <span className="role-info">
+                            {role.role === 'impostor' ? 'NO conoce la palabra' : 'Conoce la palabra'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!supervisorVisible && (
+                  <div className="supervisor-hidden-card">
+                    <div className="hidden-card-content">
+                      <h3>🎮 HOST SUPERVISOR</h3>
+                      <p>Estás supervisando la partida de forma oculta</p>
+                      <p className="supervisor-instructions">
+                        Los jugadores no saben que estás observando.<br/>
+                        Puedes ver sus roles cuando lo necesites.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               // VISTA JUGADOR NORMAL - Solo su carta
@@ -1373,6 +1408,7 @@ function App() {
                   setGameData(null);
                   setMyRole(null);
                   setVotationResults(null);
+                  setSupervisorVisible(false);
                   setRoundNumber(resetRoom.roundNumber);
                   setGameState('lobby');
                   markCriticalChange('HOST inicia nueva ronda'); // ¡CRÍTICO PARA SYNC!

@@ -1470,3 +1470,77 @@
 .new-round-btn:active {
   transform: translateY(0px);
 }
+
+/* Estilos para el control de visibilidad del supervisor */
+.supervisor-container {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.supervisor-toggle {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.supervisor-toggle-btn {
+  background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  font-size: 1rem;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: bold;
+  box-shadow: 0 8px 20px rgba(108,92,231,0.3);
+}
+
+.supervisor-toggle-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(108,92,231,0.4);
+}
+
+.supervisor-toggle-btn.active {
+  background: linear-gradient(135deg, #fd79a8 0%, #fdcb6e 100%);
+  box-shadow: 0 8px 20px rgba(253,121,168,0.3);
+}
+
+.supervisor-hint {
+  margin: 8px 0 0 0;
+  font-size: 0.9rem;
+  color: #666;
+  font-style: italic;
+}
+
+.supervisor-hidden-card {
+  background: linear-gradient(135deg, #636e72 0%, #2d3436 100%);
+  color: white;
+  padding: 30px;
+  border-radius: 20px;
+  text-align: center;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+  margin: 20px 0;
+}
+
+.hidden-card-content h3 {
+  margin: 0 0 15px 0;
+  font-size: 1.5rem;
+  color: #fff;
+}
+
+.hidden-card-content p {
+  margin: 10px 0;
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.supervisor-instructions {
+  font-size: 0.95rem !important;
+  line-height: 1.4;
+  margin-top: 15px !important;
+  padding: 15px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px;
+  border-left: 4px solid #74b9ff;
+}
